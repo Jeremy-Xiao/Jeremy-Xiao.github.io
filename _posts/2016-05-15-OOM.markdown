@@ -1,0 +1,64 @@
+---
+layout:     post
+title:      "OOM问题的分析与定位技巧"
+subtitle:   " \"MAT的使用总结\""
+date:       2016-05-15 12:00:00
+author:     "Jeremy"
+header-img: "img/post-bg-2015.jpg"
+catalog: true
+tags: [Java,OOM,MAT]
+---
+
+> “Yeah It's on. ”
+
+
+## 前言
+
+
+当前无论是Java服务端应用还是Android客户端应用，都或多或少都碰到过OOM的情况，废话不多说，这篇文章的目的就是介绍OOM问题的发生原因和分析定位的技巧
+
+发生OOM的原因无外乎两种：
+
+1 因为内存泄露导致已经不可见的对象没有被jvm的垃圾回收器正常执行gc操作，导致应用内存占用温水煮青蛙式逐渐增大，最后因无法申请新的内存空间导致OOM  =>  这种问题需要通过定位导致内存泄露的问题代码并修复来解决
+
+2 应用内存中的所有对象都是必不可少（在这里我将这些对象称为刚需对象，这些对象所需要的内存空间大小称为刚需内存大小），但是因为对象数量太多，超过jvm启动时指定的最大内存空间大小，导致OOM  =>  这种问题只能通过调整jvm启动参数或者应用拆分来解决
+
+下面分别对内存泄露和刚需内存过大（相对而言）两种情况来进行讨论
+
+<p id = "build"></p>
+---
+
+## 内存泄露
+
+在C/C++中，任何动态申请的内存都需要主动释放，否则都会造成内存泄露，这是因为C/C++没有垃圾回收机制。但是Java因为jvm具有强大的垃圾回收机制，所以并不需要主动去释放内存，这时内存泄露的表现是 **我们已经不需要这些对象然而jvm以为我们仍然需要** 。这类问题在代码实现上的具体表现基本上可以概括为 **长生命周期对象持有短生命周期对象的引用** 。
+
+举两个栗子：
+
+1 直接上代码
+
+```
+  class Item{
+  	public int i;
+  	public Item(int i) { this.i = i; }
+  	public int hashCode(){ return i; }
+  	private static Set<Item> set = new HashSet<Item>();
+  	public static void main(String... args){
+		memoryLeak();
+  	}
+  	public static void memoryLeak(){ 		
+  		Item item = new Item(1);
+		set.add(item);
+  		System.out.println("size: "+ set.size()); // 打印 size: 1 很正常
+  		item.i = 2;
+  		set.remove(item);
+  		System.out.println("size: "+ set.size()); // 打印 size: 1 你以为你删掉了
+  	}
+  }
+```
+这就是一种非常简单但是又非常典型的内存泄露的情况，对于应用逻辑来说你执行完memoryLeak函数后便不再需要item引用指向的对象，然而因为Item类重写hashCode方法导致执行set.remove(item)操作时实际上并没有真正hash到任何集合内元素，这时没有元素从集合中删除。当执行gc操作时，jvm自然而然认为我们仍然需要item引用指向的对象，因为我们仍然持有set这个引用，而set引用所指向的Set对象又持有item对象的引用 -_-!  也就是说从GCRoot出发可以走到Item对象，所以对象不会被回收。但是这个对象我们已经不再需要，所以这时对于我们来说就发生了内存泄露。如果memoryLeak函数被高频执行时，泄露的内存就会越来越多，最后导致OOM
+![Alt text](http://xiaohaolong.com/attach/2016-05-15-OOM/gc.jpg "Optional title")
+
+
+
+
+## （未完待续）
