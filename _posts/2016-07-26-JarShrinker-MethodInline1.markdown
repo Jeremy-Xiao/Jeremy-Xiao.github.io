@@ -113,11 +113,11 @@ public class Outer{
 
 运行时输出：
 
+```
 Inner static
-
 Outer static
-
 HelloWorld
+```
 
 执行优化后的代码为：
 
@@ -150,11 +150,13 @@ public class Outer{
 
 运行时输出：
 
+```
 Outer static
-
 Inner static
-
 HelloWorld
+```
+
+
 
 类的初始化顺序虽然可以理解成“按需初始化”，但当初始化一个类时，如果其宿主类，接口，基类还未初始化，会先执行这些类型的初始化。这便是由于代码优化导致的类初始化顺序发生变更从而造成的一个比较隐蔽的bug。
 
